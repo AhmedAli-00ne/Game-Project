@@ -1,3 +1,5 @@
+using System.Security.Cryptography.X509Certificates;
+
 namespace project_1
 {
     public class BGLayers
@@ -19,6 +21,7 @@ namespace project_1
         public Bitmap Img;
         public int X;
         public int Y;
+        public int ImageNo = 1;
         public PlayerSprite(Bitmap img, int x, int y)
         {
             Img = img;
@@ -38,16 +41,40 @@ namespace project_1
             Y = y;
         }
     }
+    public class Sprite
+    {
+        public Bitmap Img;
+        public int X;
+        public int Y;
+        public int Health;
+        public string Type;
+        public int ImageNo = 1;
+        public Sprite(Bitmap img, int x, int y, string T, int H)
+        {
+            Img = img;
+            X = x;
+            Y = y;
+            Type = T;
+            Health = H;
+        }
+    }
     public partial class Form1 : Form
     {
         Bitmap offImage;
         System.Windows.Forms.Timer T = new System.Windows.Forms.Timer();
+        Random R = new Random();
         BGLayers Layer1 = new BGLayers(new Bitmap("layer1.png"), 0, false);
         BGLayers Layer2 = new BGLayers(new Bitmap("layer2.png"), 0, false);
         BGLayers Layer3 = new BGLayers(new Bitmap("layer3.png"), 0, false);
         BGLayers Layer4 = new BGLayers(new Bitmap("layer4.png"), 0, false);
-        PlayerSprite Player = new PlayerSprite(new Bitmap("player.png"), 0, 0);
+        PlayerSprite Player = new PlayerSprite(new Bitmap("player/player (1).png"), 0, 0);
+        List<Bitmap> PlayerImages = new List<Bitmap>();
+        List<Bitmap> HiveWhaleImages = new List<Bitmap>();
         List<Bullet> Bullets = new List<Bullet>();
+        List<Sprite> ActiveSprites = new List<Sprite>();
+        int TickCounter = 0;
+        int TickObjective = 0;
+        bool generateRand = true;
         public Form1()
         {
             InitializeComponent();
@@ -69,7 +96,7 @@ namespace project_1
             }
             if(e.KeyCode == Keys.Space)
             {
-                Bullets.Add(new Bullet(new Bitmap("projectile.png"), Player.Img.Width - 20, Player.Y + 25));
+                Bullets.Add(new Bullet(new Bitmap("projectile.png"), Player.Img.Width - 25, Player.Y + 25));
             }
         }
 
@@ -80,15 +107,29 @@ namespace project_1
 
         private void T_Tick(object? sender, EventArgs e)
         {
+            ProjectileCollision();
+            GenerateNumber();
+            IncrementCounter();
+            PlayerAnimation();
+            AnimateSprites();
             MoveLayers();
             MoveBullet();
+            MoveSprites();
             DoubleBuffer(this.CreateGraphics());
         }
 
         private void Form1_Load(object? sender, EventArgs e)
         {
             offImage = new Bitmap(this.ClientSize.Width, this.ClientSize.Height);
-            Layer1.Img.MakeTransparent();
+            for(int i=1;i<=39;i++)
+            {
+                PlayerImages.Add(new Bitmap("player/player (" + i + ").png"));
+            }
+            for(int i=1;i<=39;i++)
+            {
+                HiveWhaleImages.Add(new Bitmap("hiveWhale/hiveWhale (" + i + ").png"));
+            }
+            T.Interval = 1;
             T.Start();
         }
 
@@ -118,6 +159,91 @@ namespace project_1
                     Bullets.RemoveAt(i);
                 }
             }
+            for(int i=0;i<ActiveSprites.Count;i++)
+            {
+                g.DrawImage(ActiveSprites[i].Img, ActiveSprites[i].X, ActiveSprites[i].Y);
+            }
+        }
+        void ProjectileCollision()
+        {
+            for (int i = 0; i < Bullets.Count; i++)
+            {
+                for (int j = 0; j < ActiveSprites.Count; j++)
+                {
+                    if (Bullets[i].X + Bullets[i].Img.Width > ActiveSprites[j].X && Bullets[i].X < ActiveSprites[j].X + ActiveSprites[j].Img.Width && Bullets[i].Y + Bullets[i].Img.Height > ActiveSprites[j].Y && Bullets[i].Y < ActiveSprites[j].Y + ActiveSprites[j].Img.Height)
+                    {
+                        ActiveSprites[j].Health -= 1;
+                        Bullets.RemoveAt(i);
+                        if (ActiveSprites[j].Health <= 0)
+                        {
+                            ActiveSprites.RemoveAt(j);
+                        }
+                    }
+                }
+            }
+        }
+        void AnimateSprites()
+        {
+            for (int i = 0; i < ActiveSprites.Count; i++)
+            {
+                if (ActiveSprites[i].Type == "HiveWhale")
+                {
+                    if (ActiveSprites[i].ImageNo == 39)
+                    {
+                        ActiveSprites[i].ImageNo = 1;
+                    }
+                    else
+                    {
+                        ActiveSprites[i].ImageNo++;
+                    }
+                    ActiveSprites[i].Img = HiveWhaleImages[ActiveSprites[i].ImageNo - 1];
+                }
+            }
+        }
+        void MoveSprites()
+        {
+            for(int i=0;i<ActiveSprites.Count;i++)
+            {
+                ActiveSprites[i].X -= 2;
+                if (ActiveSprites[i].X < -ActiveSprites[i].Img.Width)
+                {
+                    ActiveSprites.RemoveAt(i);
+                }
+            }
+        }
+        void SpawnSprite()
+        {
+            ActiveSprites.Add(new Sprite(new Bitmap("hiveWhale/hiveWhale (1).png"), this.ClientSize.Width, R.Next(30, this.ClientSize.Height - 100 - HiveWhaleImages[0].Height), "HiveWhale", 100));
+        }
+        void IncrementCounter()
+        {
+            TickCounter++;
+            if (TickCounter == TickObjective)
+            {
+                generateRand = true;
+                TickCounter = 0;
+                SpawnSprite();
+            }
+        }
+        void GenerateNumber()
+        {
+            if (generateRand)
+            {
+                TickObjective = R.Next(0, 500);
+                generateRand = false;
+            }
+        }
+        void PlayerAnimation()
+        {
+            if (Player.ImageNo == 38)
+            {
+                Player.ImageNo = 0;
+            }
+            else
+            {
+                Player.ImageNo++;
+            }
+            Player.Img = PlayerImages[Player.ImageNo];
         }
         void MoveBullet()
         {
@@ -145,8 +271,8 @@ namespace project_1
             {
                 if (Layer3.NextX > -500)
                 {
-                    Layer3.NextX -= 7;
-                    Layer3.X -= 7;
+                    Layer3.NextX -= 5;
+                    Layer3.X -= 5;
                 }
                 else
                 {
@@ -158,8 +284,8 @@ namespace project_1
             {
                 if (Layer1.X > -950)
                 {
-                    Layer1.X -= 5;
-                    Layer1.NextX -= 5;
+                    Layer1.X -= 1;
+                    Layer1.NextX -= 1;
                 }
                 else
                 {
@@ -171,8 +297,8 @@ namespace project_1
             {
                 if (Layer1.NextX > -950)
                 {
-                    Layer1.NextX -= 5;
-                    Layer1.X -= 5;
+                    Layer1.NextX -= 1;
+                    Layer1.X -= 1;
                 }
                 else
                 {
@@ -184,8 +310,8 @@ namespace project_1
             {
                 if (Layer2.X < 500)
                 {
-                    Layer2.X += 2;
-                    Layer2.NextX += 2;
+                    Layer2.X += 1;
+                    Layer2.NextX += 1;
                 }
                 else
                 {
@@ -197,8 +323,8 @@ namespace project_1
             {
                 if (Layer2.NextX < 500)
                 {
-                    Layer2.NextX += 2;
-                    Layer2.X += 2;
+                    Layer2.NextX += 1;
+                    Layer2.X += 1;
                 }
                 else
                 {
