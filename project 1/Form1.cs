@@ -7,7 +7,7 @@ namespace project_1
         public Bitmap Img;
         public int X;
         public int NextX;
-        public bool StartNext = false;
+        public bool StartNext;
         public BGLayers(Bitmap img, int x, bool Next)
         {
             Img = img;
@@ -22,6 +22,7 @@ namespace project_1
         public int X;
         public int Y;
         public int ImageNo = 1;
+        public bool super = false;
         public PlayerSprite(Bitmap img, int x, int y)
         {
             Img = img;
@@ -34,11 +35,13 @@ namespace project_1
         public Bitmap Img;
         public int X;
         public int Y;
-        public Bullet(Bitmap img, int x, int y)
+        public int CoolDown;
+        public Bullet(Bitmap img, int x, int y, int C)
         {
             Img = img;
             X = x;
             Y = y;
+            CoolDown = C;
         }
     }
     public class Sprite
@@ -69,12 +72,24 @@ namespace project_1
         BGLayers Layer4 = new BGLayers(new Bitmap("layer4.png"), 0, false);
         PlayerSprite Player = new PlayerSprite(new Bitmap("player/player (1).png"), 0, 0);
         List<Bitmap> PlayerImages = new List<Bitmap>();
+        List<Bitmap> PlayerSuperImages = new List<Bitmap>();
         List<Bitmap> HiveWhaleImages = new List<Bitmap>();
+        List<Bitmap> Lucky1 = new List<Bitmap>();
+        List<Bitmap> Lucky2 = new List<Bitmap>();
+        List<Bitmap> SmokeImages = new List<Bitmap>();
+        List<Bitmap> FireImages = new List<Bitmap>();
         List<Bullet> Bullets = new List<Bullet>();
+        List<Bullet> TailBullets = new List<Bullet>();
         List<Sprite> ActiveSprites = new List<Sprite>();
-        int TickCounter = 0;
-        int TickObjective = 0;
-        bool generateRand = true;
+        
+        int HiveWhaleTickCounter = 0;
+        int HiveWhaleTickObjective = 0;
+        int LuckyTickCounter = 0;
+        int LuckyTickObjective = 0;
+        bool HiveWhaleGenerateRand = true;
+        bool LuckyGenerateRand = true;
+        
+        bool BulletOk = true;
         public Form1()
         {
             InitializeComponent();
@@ -94,9 +109,14 @@ namespace project_1
             {
                 Player.Y += 10;
             }
-            if(e.KeyCode == Keys.Space)
+            if(e.KeyCode == Keys.Space && BulletOk)
             {
-                Bullets.Add(new Bullet(new Bitmap("projectile.png"), Player.Img.Width - 25, Player.Y + 25));
+                Bullets.Add(new Bullet(new Bitmap("projectile.png"), Player.Img.Width - 25, Player.Y + 25, 3));
+                BulletOk = false;
+                if (Player.super)
+                {
+                    TailBullets.Add(new Bullet(new Bitmap("projectile.png"), Player.Img.Width -25, Player.Y + Player.Img.Height-20, 3));
+                }
             }
         }
 
@@ -110,11 +130,12 @@ namespace project_1
             ProjectileCollision();
             GenerateNumber();
             IncrementCounter();
-            PlayerAnimation();
+            AnimatePlayer();
             AnimateSprites();
             MoveLayers();
             MoveBullet();
             MoveSprites();
+            PreventSpam();
             DoubleBuffer(this.CreateGraphics());
         }
 
@@ -125,9 +146,29 @@ namespace project_1
             {
                 PlayerImages.Add(new Bitmap("player/player (" + i + ").png"));
             }
-            for(int i=1;i<=39;i++)
+            for (int i = 1; i <= 39; i++)
+            {
+                PlayerSuperImages.Add(new Bitmap("player/playerEvolve (" + i + ").png"));
+            }
+            for (int i=1;i<=39;i++)
             {
                 HiveWhaleImages.Add(new Bitmap("hiveWhale/hiveWhale (" + i + ").png"));
+            }
+            for (int i = 1; i <= 39; i++)
+            {
+                Lucky1.Add(new Bitmap("lucky/lucky1 (" + i + ").png"));
+            }
+            for (int i = 1; i <= 39; i++)
+            {
+                Lucky2.Add(new Bitmap("lucky/lucky2 (" + i + ").png"));
+            }
+            for (int i = 1; i <= 8; i++)
+            {
+                SmokeImages.Add(new Bitmap("smoke"+ i.ToString() +".png"));
+            }
+            for (int i = 1; i <= 8; i++)
+            {
+                FireImages.Add(new Bitmap("fire/fire (" + i.ToString() + ").png"));
             }
             T.Interval = 1;
             T.Start();
@@ -159,9 +200,35 @@ namespace project_1
                     Bullets.RemoveAt(i);
                 }
             }
-            for(int i=0;i<ActiveSprites.Count;i++)
+            for (int i = 0; i < TailBullets.Count; i++)
+            {
+                g.DrawImage(TailBullets[i].Img, TailBullets[i].X, TailBullets[i].Y);
+                if (TailBullets[i].X > this.ClientSize.Width)
+                {
+                    TailBullets.RemoveAt(i);
+                }
+            }
+            for (int i=0;i<ActiveSprites.Count;i++)
             {
                 g.DrawImage(ActiveSprites[i].Img, ActiveSprites[i].X, ActiveSprites[i].Y);
+            }
+        }
+        void AnimateSpriteDeath(int pos)
+        {
+            if (ActiveSprites[pos].Type == "hiveWhale")
+            {
+                int DeathX = ActiveSprites[pos].X;
+                int DeathY = ActiveSprites[pos].Y;
+                ActiveSprites.RemoveAt(pos);
+                ActiveSprites.Insert(pos, new Sprite(new Bitmap("smoke1.png"), DeathX, DeathY, "Smoke", 200));
+            }
+            else if (ActiveSprites[pos].Type == "lucky1" || ActiveSprites[pos].Type == "lucky2")
+            {
+                int DeathX = ActiveSprites[pos].X;
+                int DeathY = ActiveSprites[pos].Y;
+                ActiveSprites.RemoveAt(pos);
+                ActiveSprites.Insert(pos, new Sprite(new Bitmap("fire/fire (1).png"), DeathX, DeathY, "Fire", 200));
+                Player.super = true;
             }
         }
         void ProjectileCollision()
@@ -174,9 +241,32 @@ namespace project_1
                     {
                         ActiveSprites[j].Health -= 1;
                         Bullets.RemoveAt(i);
+                        if (i > Bullets.Count - 1)
+                        {
+                            break;
+                        }
                         if (ActiveSprites[j].Health <= 0)
                         {
-                            ActiveSprites.RemoveAt(j);
+                            AnimateSpriteDeath(j);
+                        }
+                    }
+                }
+            }
+            for (int i = 0; i < TailBullets.Count; i++)
+            {
+                for (int j = 0; j < ActiveSprites.Count; j++)
+                {
+                    if (TailBullets[i].X + TailBullets[i].Img.Width > ActiveSprites[j].X && TailBullets[i].X < ActiveSprites[j].X + ActiveSprites[j].Img.Width && TailBullets[i].Y + TailBullets[i].Img.Height > ActiveSprites[j].Y && TailBullets[i].Y < ActiveSprites[j].Y + ActiveSprites[j].Img.Height)
+                    {
+                        ActiveSprites[j].Health -= 1;
+                        TailBullets.RemoveAt(i);
+                        if (i > TailBullets.Count - 1)
+                        {
+                            break;
+                        }
+                        if (ActiveSprites[j].Health <= 0)
+                        {
+                            AnimateSpriteDeath(j);
                         }
                     }
                 }
@@ -186,7 +276,7 @@ namespace project_1
         {
             for (int i = 0; i < ActiveSprites.Count; i++)
             {
-                if (ActiveSprites[i].Type == "HiveWhale")
+                if (ActiveSprites[i].Type == "hiveWhale")
                 {
                     if (ActiveSprites[i].ImageNo == 39)
                     {
@@ -197,6 +287,56 @@ namespace project_1
                         ActiveSprites[i].ImageNo++;
                     }
                     ActiveSprites[i].Img = HiveWhaleImages[ActiveSprites[i].ImageNo - 1];
+                }
+                else if (ActiveSprites[i].Type == "lucky1")
+                {
+                    if (ActiveSprites[i].ImageNo == 39)
+                    {
+                        ActiveSprites[i].ImageNo = 1;
+                    }
+                    else
+                    {
+                        ActiveSprites[i].ImageNo++;
+                    }
+                    ActiveSprites[i].Img = Lucky1[ActiveSprites[i].ImageNo - 1];
+                }
+                else if (ActiveSprites[i].Type == "lucky2")
+                {
+                    if (ActiveSprites[i].ImageNo == 39)
+                    {
+                        ActiveSprites[i].ImageNo = 1;
+                    }
+                    else
+                    {
+                        ActiveSprites[i].ImageNo++;
+                    }
+                    ActiveSprites[i].Img = Lucky2[ActiveSprites[i].ImageNo - 1];
+                }
+                else if (ActiveSprites[i].Type == "Smoke")
+                {
+                    if (ActiveSprites[i].ImageNo == 8)
+                    {
+                        ActiveSprites.RemoveAt(i);
+                        continue;
+                    }
+                    else
+                    {
+                        ActiveSprites[i].ImageNo++;
+                        ActiveSprites[i].Img = SmokeImages[ActiveSprites[i].ImageNo - 1];
+                    }
+                }
+                else if (ActiveSprites[i].Type == "Fire")
+                {
+                    if (ActiveSprites[i].ImageNo == 8)
+                    {
+                        ActiveSprites.RemoveAt(i);
+                        continue;
+                    }
+                    else
+                    {
+                        ActiveSprites[i].ImageNo++;
+                        ActiveSprites[i].Img = FireImages[ActiveSprites[i].ImageNo - 1];
+                    }
                 }
             }
         }
@@ -211,29 +351,52 @@ namespace project_1
                 }
             }
         }
-        void SpawnSprite()
+        void SpawnSprite(string Type)
         {
-            ActiveSprites.Add(new Sprite(new Bitmap("hiveWhale/hiveWhale (1).png"), this.ClientSize.Width, R.Next(30, this.ClientSize.Height - 100 - HiveWhaleImages[0].Height), "HiveWhale", 100));
+            if (Type == "hiveWhale")
+            {
+                ActiveSprites.Add(new Sprite(new Bitmap(Type + "/" + Type + " (1).png"), this.ClientSize.Width, R.Next(30, this.ClientSize.Height - 100 - HiveWhaleImages[0].Height), Type, 20));
+            }
+            else if (Type == "lucky1")
+            {
+                ActiveSprites.Add(new Sprite(new Bitmap("lucky/" + Type + " (1).png"), this.ClientSize.Width, R.Next(30, this.ClientSize.Height - 100 - Lucky1[0].Height), Type, 1));
+            }
+            else if (Type == "lucky2")
+            {
+                ActiveSprites.Add(new Sprite(new Bitmap("lucky/" + Type + " (1).png"), this.ClientSize.Width, R.Next(30, this.ClientSize.Height - 100 - Lucky2[0].Height), Type, 1));
+            }
         }
         void IncrementCounter()
         {
-            TickCounter++;
-            if (TickCounter == TickObjective)
+            HiveWhaleTickCounter++;
+            if (HiveWhaleTickCounter == HiveWhaleTickObjective)
             {
-                generateRand = true;
-                TickCounter = 0;
-                SpawnSprite();
+                HiveWhaleGenerateRand = true;
+                HiveWhaleTickCounter = 0;
+                SpawnSprite("hiveWhale");
+            }
+            LuckyTickCounter++;
+            if (LuckyTickCounter == LuckyTickObjective)
+            {
+                LuckyGenerateRand = true;
+                LuckyTickCounter = 0;
+                SpawnSprite("lucky"+R.Next(1,2).ToString());
             }
         }
         void GenerateNumber()
         {
-            if (generateRand)
+            if (HiveWhaleGenerateRand)
             {
-                TickObjective = R.Next(0, 500);
-                generateRand = false;
+                HiveWhaleTickObjective = R.Next(0, 500);
+                HiveWhaleGenerateRand = false;
+            }
+            if(LuckyGenerateRand)
+            {
+                LuckyTickObjective = R.Next(0, 500);
+                LuckyGenerateRand = false;
             }
         }
-        void PlayerAnimation()
+        void AnimatePlayer()
         {
             if (Player.ImageNo == 38)
             {
@@ -243,13 +406,24 @@ namespace project_1
             {
                 Player.ImageNo++;
             }
-            Player.Img = PlayerImages[Player.ImageNo];
+            if (Player.super)
+            {
+                Player.Img = PlayerSuperImages[Player.ImageNo];
+            }
+            else
+            {
+                Player.Img = PlayerImages[Player.ImageNo];
+            }
         }
         void MoveBullet()
         {
             for (int i = 0; i < Bullets.Count; i++)
             {
                 Bullets[i].X += 10;
+            }
+            for (int i = 0; i < TailBullets.Count; i++)
+            {
+                TailBullets[i].X += 10;
             }
         }
         void MoveLayers()
@@ -330,6 +504,20 @@ namespace project_1
                 {
                     Layer2.X = Layer2.NextX - Layer2.Img.Width;
                     Layer2.StartNext = true;
+                }
+            }
+        }
+        void PreventSpam()
+        {
+            if (Bullets.Count > 0)
+            {
+                if (Bullets[Bullets.Count-1].CoolDown == 0)
+                {
+                    BulletOk = true;
+                }
+                else
+                {
+                    Bullets[Bullets.Count-1].CoolDown--;
                 }
             }
         }
