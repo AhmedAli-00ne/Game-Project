@@ -23,6 +23,7 @@ namespace project_1
         public int Y;
         public int ImageNo = 1;
         public bool super = false;
+        public int SuperTimer = 0;
         public PlayerSprite(Bitmap img, int x, int y)
         {
             Img = img;
@@ -229,6 +230,7 @@ namespace project_1
                 ActiveSprites.RemoveAt(pos);
                 ActiveSprites.Insert(pos, new Sprite(new Bitmap("fire/fire (1).png"), DeathX, DeathY, "Fire", 200));
                 Player.super = true;
+                Player.SuperTimer += 500;
             }
         }
         void ProjectileCollision()
@@ -413,6 +415,17 @@ namespace project_1
             else
             {
                 Player.Img = PlayerImages[Player.ImageNo];
+            }
+            if (Player.super)
+            {
+                if(Player.SuperTimer > 0)
+                {
+                    Player.SuperTimer--;
+                }
+                else
+                {
+                    Player.super = false;
+                }
             }
         }
         void MoveBullet()
